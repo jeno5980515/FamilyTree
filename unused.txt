@@ -1,0 +1,190 @@
+	var FixSoloChild = function(){
+		var Fixed = false ;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ) {
+			if ( NodeList[i].sex === 1 && NodeList[i].children.length === 1 ){
+				NodeList[i].children[0].x = (NodeList[i].x + NodeList[i].couple.x )/ 2 ;
+				Fixed = true ;
+			}
+		}
+		//if ( Fixed === true )
+		//	DetectAllCover();
+	}
+	
+	var FixCouple = function(){
+		var Fixed = false ;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			if ( NodeList[i].couple !== null ){
+				if ( NodeList[i].sex === 1  ){
+					if ( NodeList[i].father !== null && NodeList[i].couple.father !== null ){
+						if ( NodeList[i].father.x > NodeList[i].couple.father.x ){
+							var temp = NodeList[i].father.x ;
+							NodeList[NodeList[i].father.id].x = NodeList[NodeList[i].couple.father.id].x ;
+							NodeList[NodeList[i].couple.father.id].x = temp ;
+							temp = NodeList[i].mother.x ;
+							NodeList[NodeList[i].mother.id].x = NodeList[NodeList[i].couple.mother.id].x ;
+							NodeList[NodeList[i].couple.mother.id].x = temp ;
+							Fixed = true ;
+						}
+					}
+				}
+			}
+		}
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			if ( NodeList[i].couple !== null ){
+				if ( NodeList[i].sex === 1  ){
+					if ( NodeList[i].x > NodeList[i].couple.x ){
+						var temp = NodeList[i].x ;
+						NodeList[i].x = NodeList[NodeList[i].couple.id].x ;
+						NodeList[NodeList[i].couple.id].x = temp ;
+						Fixed = true ;
+					}
+				}
+			}
+		}
+		if ( Fixed === true ){
+			DetectAllCover();
+		}
+	}
+
+
+	var DetectChildIsCouple = function(index1,index2){
+		for ( var i = 0 ; i < NodeList[index1].children.length ; i ++ ){
+			for ( var j = 0 ; j < NodeList[index2].children.length ; j ++ ){
+				if ( NodeList[index2].children[j].couple !== null ) {
+					if ( NodeList[index1].children[i].id === NodeList[index2].children[j].couple.id ) {
+						if ( NodeList[index1].children[i].sex !== 1 ){
+							return false ;
+						}
+					}
+				}
+			}
+		}
+		return true ;
+	}
+	
+	var FixSite = function(index1,index2){
+		if ( NodeList[index1].x >= NodeList[index2].x ){
+			var temp = index1 ;
+			index1 = index2 ;
+			index2 = temp ;
+		}
+		if ( (NodeList[index2].couple !== null &&  NodeList[index1].father !== null && NodeList[index2].couple.father !== null
+			&& NodeList[index1].father.id === NodeList[index2].couple.father.id) ){
+			var id1 , id2 ;
+			var index2_couple = NodeList[index2].couple.id ;
+			for ( var i = 0 ; i < NodeList[index1].father.children.length ; i ++ ){
+				if ( NodeList[index1].father.children[i].id === index1 )
+					id1 = i ;
+				if ( NodeList[index1].father.children[i].id === index2_couple )
+					id2 = i ;
+			}
+			if ( id1 > id2 ){
+				var temp = index1 ;
+				index1 = index2 ;
+				index2 = temp ;
+			}
+		} else if ( NodeList[index1].couple !== null &&  NodeList[index2].father !== null && NodeList[index1].couple.father !== null
+					&& NodeList[index2].father.id === NodeList[index1].couple.father.id	){
+			var id1 , id2 ;
+			var index1_couple = NodeList[index1].couple.id ;
+			for ( var i = 0 ; i < NodeList[index2].father.children.length ; i ++ ){
+				if ( NodeList[index2].father.children[i].id === index2 )
+					id2 = i ;
+				if ( NodeList[index2].father.children[i].id === index1_couple )
+					id1 = i ;
+			}
+			if ( id1 > id2 ){
+				var temp = index1 ;
+				index1 = index2 ;
+				index2 = temp ;
+			}
+		}
+		NodeList[index1].x -= child_horizontal_distance / 4  ;
+		NodeList[index2].x += child_horizontal_distance / 4  ;
+		if ( NodeList[index1].couple !== null ){
+			if ( NodeList[index1].sex === 0 ) {
+				NodeList[NodeList[index1].couple.id].x = NodeList[index1].x - couple_distance ;
+			}
+			else {
+				NodeList[NodeList[index1].couple.id].x = NodeList[index1].x - couple_distance ;	
+			}
+		}
+		if ( NodeList[index2].couple !== null ){
+			if ( NodeList[index2].sex === 0 )
+				NodeList[NodeList[index2].couple.id].x = NodeList[index2].x + couple_distance ;
+			else 
+				NodeList[NodeList[index2].couple.id].x = NodeList[index2].x + couple_distance ;	
+		}
+		/*
+		FixCouple();
+		if ( NodeList[index1].father !== null ) 
+			FixChildren(NodeList[index1].father.id) ;
+		if ( NodeList[index2].father !== null )
+			FixChildren(NodeList[index2].father.id) ;
+		FixParent(index1) ;
+		FixParent(index2) ;
+		/*
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			if ( NodeList[i].father !== null ){
+				FixParent(i) ;
+			}
+		}
+		*/
+	}
+
+	
+	var ResetNodeId = function(index){
+		for ( var i = index ; i < NodeList.length ; i ++ ){
+			NodeList[i].id -= 1 ;
+		}
+	}
+	
+	var RemoveCoupleNode = function(index){
+		NodeList[NodeList[index].couple.id].couple = null ;
+		NodeList[index].couple = null ;
+	}
+	
+	$('#removenode').click(function (e) {
+		if ( DetectNull() === true) {
+			if ( NodeList.length === 1 ) {
+				alert("最後一點") ;
+			} else if ( NodeList[NowId].children.length === 0 && NodeList[NowId].father === null ){ 
+				RemoveCoupleNode(NowId);
+				NodeList.splice(NowId,1) ;
+				ResetNodeId(NowId) ;
+				NowId = null ;
+				Paint();
+			} else if ( NodeList[NowId].couple === null && NodeList[NowId].children.length === 0 ){
+				for ( var i = 0 ; i < NodeList[NowId].father.children.length ; i ++ ){
+					if ( NodeList[NowId].father.children[i].id === NowId ){
+						NodeList[NowId].father.children.splice(i,1);
+						break ;
+					}
+				}
+				for ( var i = 0 ; i < NodeList[NowId].mother.children.length ; i ++ ){
+					if ( NodeList[NowId].mother.children[i].id === NowId ){
+						NodeList[NowId].mother.children.splice(i,1);
+						break ;
+					}
+				}
+				NodeList.splice(NowId,1) ;
+				ResetNodeId(NowId) ;
+				NowId = null ;
+				Paint();
+			} else {
+				alert("無法移除") ;
+			}
+		}
+	});
+	
+
+
+	
+	$('#insertparent').click(function (e) {
+		InsertParent();
+	});
+
+	
+	$('#insertcouple').click(function (e) {
+		InsertCouple();
+	});

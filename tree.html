@@ -1,0 +1,684 @@
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+
+<script>
+	function Node(id){
+		this.together = false ;
+		this.id = id ;
+		this.me = false ;
+		this.dead = false ;
+		this.sex = 0 ;
+		this.age = null ;
+		this.couple = null ;
+		this.father = null ;
+		this.mother = null ;
+		this.children = [] ;
+		this.x = null ;
+		this.y = null ;
+	}
+	
+
+</script>
+<table>
+	<tr>
+		<td>
+			<div width="1000" height="700" >
+				<canvas id="myCanvas" width="1000" height="700" style="border:1px solid #000000;"></canvas>
+			</div >
+		</td>
+		<td>
+			<div width="1000" height="700" >
+				<button id="changedead">更改生命</button><br><br>
+				<button id="changeme">設為自己</button><br><br>
+				<button id="changesex">更改性別</button><br><br>
+				<button id="insertchild_front">插入小孩(前)</button><br><br>
+				<button id="insertchild_back">插入小孩(後)</button><br><br>
+				<button id="changetogether">更改居住</button><br><br>
+				<input id="age"></input><br><br>
+				<button id="reset">重置</button><br><br>
+
+
+				<!--
+				<button id="insertparent">插入家長</button>
+				<button id="insertcouple">插入伴侶</button>
+				<button id="removenode">移除節點</button>
+				-->
+			</div>
+		</td>
+	</tr>
+</table>
+
+<script>
+	var c = document.getElementById('myCanvas') ;
+	var ctx = c.getContext("2d");
+	var dragspeed = 0.01 ;
+	var mouse_press = false ;
+	var press_mouse_x ;
+	var press_mouse_y ;
+	var move_x = 0 ;
+	var move_y = 0 ;
+	var moved_x = 0 ;
+	var moved_y = 0 ;
+	var mouse_x = 0, mouse_y = 0;
+	var baselong = 0 , baselati = 0 ;
+	var offsetx = 18 , offsety = 18 , offsetsize = 15 ;
+	var size = 20 ;
+	var node_vertical_distance = 115 ;
+	var child_horizontal_distance = 100 ;
+	var NodeList = [] ;
+	var PaintedNode = [] ;
+	var LevelOrderNode = [[]] ;
+	var NowId = null ;
+	var cover_distance = 10 ;
+	var demoved = 0 ;
+	var couple_distance = 100 ;
+	ctx.lineWidth = 2 ;
+	ctx.fillStyle = "white" ;
+	var HighestList = [];
+	var SecondList = [];
+	var LowestList = [];
+	var HighestLeft , HighestRight ;
+	var SecondLeft , SecondRight ;
+	var LowestLeft , LowestRight ;
+	
+	$("#myCanvas").mousedown(function (e) {
+		press_mouse_x = mouse_x;
+		press_mouse_y = mouse_y;
+		mouse_press = true ;
+	});
+	
+	$("#myCanvas").mouseup(function (e) {
+		moved_x += move_x ;
+		moved_y += move_y ;
+		move_x = 0 ;
+		move_y = 0 ;
+		mouse_press = false ;
+		Paint2();
+		press_mouse_x = 0 ;
+		press_mouse_y = 0 ;
+
+ 	});
+
+	$("#myCanvas").mousemove(function (e) {
+		mouse_x = e.pageX + document.documentElement.scrollTop;
+		mouse_y = e.pageY + document.documentElement.scrollLeft;
+		if ( mouse_press === true ){
+			move_x = mouse_x-press_mouse_x ;
+			move_y = mouse_y-press_mouse_y ;
+			ctx.clearRect ( (-1)*c.width , (-1)*c.height , c.width*2, c.height*2 );
+			Paint2();
+		} 
+	});
+	
+	
+	$('#myCanvas').click(function (e) {
+		mouse_x = e.pageX + document.documentElement.scrollTop;
+		mouse_y = e.pageY + document.documentElement.scrollLeft;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ) {
+			if ( Math.abs(mouse_x - NodeList[i].x -(move_x+moved_x) )  <= size && Math.abs(mouse_y - NodeList[i].y -(move_y+moved_y) ) <= size ) {
+				NowId = NodeList[i].id ;
+				$('#age').val(NodeList[NowId].age);
+				Paint2();
+				return ;
+			}
+		}
+		NowId = null ;
+		Paint2();
+	});
+	
+	$('#age').keyup(function(){
+		if ( DetectNull() === true){
+			NodeList[NowId].age = $(this).val();
+			Paint2();
+		}
+	});
+
+	$('#changedead').click(function (e) {
+		if ( DetectNull() === true){
+			if ( NodeList[NowId].dead === true )
+				NodeList[NowId].dead = false ;
+			else 
+				NodeList[NowId].dead = true ;
+			Paint();
+		}
+	});
+	
+	$('#changetogether').click(function (e) {
+		if ( DetectNull() === true){
+			if ( NodeList[NowId].together === true )
+				NodeList[NowId].together = false ;
+			else 
+				NodeList[NowId].together = true ;
+			Paint();
+		}
+	});
+	
+	$('#changeme').click(function (e) {
+		if ( DetectNull() === true){
+			for ( var i = 0 ; i < NodeList.length ; i ++ ){
+				NodeList[i].me = false ;
+			}
+			NodeList[NowId].me = true ;
+			Paint();
+		}
+	});
+	
+	$('#reset').click(function (e) {
+		Init();
+	});
+	
+	$('#changesex').click(function (e) {
+		if ( DetectNull() === true){
+			if ( NodeList[NowId].couple !== null ){
+				alert("已有伴侶無法更改") ;
+				return ;
+			}
+			NodeList[NowId].sex = 1 - NodeList[NowId].sex ;
+			Paint();
+		}
+	});
+
+	$('#insertchild_back').click(function (e) {
+		InsertChildBack();
+	});
+	
+	$('#insertchild_front').click(function (e) {
+		InserChildFront();
+	});
+	
+	var InsertParent = function(){
+		if ( DetectNull() === true ){
+			if ( NodeList[NowId].father !== null && NodeList[NowId].mother !== null){
+				alert("已有家長") ;
+			} else {
+				var father = new Node(NodeList.length) ;
+				father.children.push(NodeList[NowId]) ;
+				father.sex = 1 ;
+				var mother = new Node(NodeList.length+1) ;
+				mother.children.push(NodeList[NowId]) ;
+				mother.sex = 0 ;
+				father.couple = mother ;
+				mother.couple = father ;
+				NodeList.push(father) ;
+				NodeList.push(mother) ;
+				NodeList[NowId].father = father ;
+				NodeList[NowId].mother = mother ;
+				Paint();
+			}
+		}
+	}
+	
+	var InsertCouple = function(){
+		if ( DetectNull() === true){
+			if ( NodeList[NowId].couple !== null ){
+				alert("重婚") ;
+			} else {
+				var coupleNode = new Node(NodeList.length) ;
+				coupleNode.sex = ( 1 - NodeList[NowId].sex ) ;
+				coupleNode.couple = NodeList[NowId] ;
+				NodeList.push(coupleNode) ;
+				NodeList[NowId].couple = coupleNode ;
+				NodeList[coupleNode.id].couple = NodeList[NowId] ;
+				Paint();
+			}
+		}
+	}
+	
+	var InsertChildBack = function(){
+		if ( DetectNull() === true){
+			if ( NodeList[NowId].couple === null ){
+				alert("沒有伴侶") ;
+			} else {
+				var child = new Node(NodeList.length) ;
+				NodeList.push(child) ;
+				if ( NodeList[NowId].sex === 0 ) {
+					NodeList[child.id].mother = NodeList[NowId];
+					NodeList[child.id].father = NodeList[NowId].couple ;
+				} else {
+					NodeList[child.id].father = NodeList[NowId];
+					NodeList[child.id].mother = NodeList[NowId].couple ;
+				}
+				NodeList[NowId].children.push(child) ;
+				NodeList[NodeList[NowId].couple.id].children.push(child) ;
+				Paint();
+			}
+		}
+	}
+	
+	var InserChildFront = function(){
+		if ( DetectNull() === true){
+			if ( NodeList[NowId].couple === null ){
+				alert("沒有伴侶") ;
+			} else {
+				var child = new Node(NodeList.length) ;
+				NodeList.push(child) ;
+				if ( NodeList[NowId].sex === 0 ) {
+					NodeList[child.id].mother = NodeList[NowId];
+					NodeList[child.id].father = NodeList[NowId].couple ;
+				} else {
+					NodeList[child.id].father = NodeList[NowId];
+					NodeList[child.id].mother = NodeList[NowId].couple ;
+				}
+				NodeList[NowId].children.unshift(child) ;
+				NodeList[NodeList[NowId].couple.id].children.unshift(child) ;
+				Paint();
+			}
+		}
+	}
+	
+	var DetectNull = function(){
+		if (NowId === null){
+			alert("請選擇人物") ;
+			return false ;
+		} 
+		return true ;
+	}
+
+	var ResetParentSite = function(index){
+		if ( ( NodeList[index].father === null &&  NodeList[index].mother === null ) || PaintedNode[index] === true ){
+			return ;
+		}
+		NodeList[NodeList[index].father.id].x = NodeList[index].x - couple_distance / 2 ;
+		NodeList[NodeList[index].mother.id].x = NodeList[index].x + couple_distance / 2 ;
+		NodeList[NodeList[index].father.id].y = NodeList[index].y - node_vertical_distance ;
+		NodeList[NodeList[index].mother.id].y = NodeList[index].y - node_vertical_distance ;
+		ResetParentSite(NodeList[index].father.id);
+		ResetParentSite(NodeList[index].mother.id);
+		ResetChildrenSite(NodeList[index].mother.id);
+	}	
+	
+	var ResetChildrenSite = function(index){
+		if ( NodeList[index].children.length === 0 || PaintedNode[index] === true )
+			return ;
+		PaintedNode[index] = true ;
+		if ( NodeList[index].sex === 0 ){
+			for ( var i = 0 ; i < NodeList[index].children.length ; i ++ ){
+				ResetCoupleSite(NodeList[index].children[i].id) ;
+				NodeList[NodeList[index].children[i].id].x = (-1)*child_horizontal_distance / 2 + NodeList[index].x + ( child_horizontal_distance * i ) - ( NodeList[index].children.length - 1 ) * child_horizontal_distance / 2 ;
+				NodeList[NodeList[index].children[i].id].y = NodeList[index].y + node_vertical_distance ;
+				ResetChildrenSite(NodeList[index].children[i].id) ;
+			}
+		} else {
+			for ( var i = 0 ; i < NodeList[index].children.length ; i ++ ){
+				ResetCoupleSite(NodeList[index].children[i].id) ;
+				NodeList[NodeList[index].children[i].id].x = (child_horizontal_distance / 2) + NodeList[index].x + ( child_horizontal_distance * i ) - ( NodeList[index].children.length - 1 ) * child_horizontal_distance / 2 ;
+				NodeList[NodeList[index].children[i].id].y = NodeList[index].y + node_vertical_distance ;
+				ResetChildrenSite(NodeList[index].children[i].id) ;
+			}
+		}
+	}
+	
+	var ResetCoupleSite = function(index){
+		if ( NodeList[index].couple === null || PaintedNode[index] === true ){
+			return ;
+		}
+		NodeList[NodeList[index].couple.id].y = NodeList[index].y ;
+		if ( NodeList[index].sex === 0 ) {
+			NodeList[NodeList[index].couple.id].x = NodeList[index].x - couple_distance ;
+		} else {
+			NodeList[NodeList[index].couple.id].x = NodeList[index].x + couple_distance ;
+		}
+		ResetParentSite(NodeList[index].couple.id);
+		ResetChildrenSite(NodeList[index].couple.id);
+	}	
+	
+	var ResetAllSite = function(){
+		NodeList[0].x = c.width/2 ; 
+		ResetParentSite(0);
+		ResetCoupleSite(0);
+		ResetChildrenSite(0);
+	}
+	
+	var Paint = function(){
+		PaintedNode = new Array();
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			PaintedNode.push(false) ;
+		}
+		ResetAllSite();
+		DetectAllCover();
+		Paint2();
+	}
+	
+	var DetectLevel = function(offset){
+		var move = offset ;
+		var moved = false ;
+		for ( var i = 0 ; i < HighestList.length ; i ++ ){
+			NodeList[HighestList[i]].x += move ;
+			NodeList[NodeList[HighestList[i]].couple.id].x += move ;
+			if ( moved === true ){
+				for ( var j = 0 ; j < NodeList[HighestList[i]].children.length ; j ++ )
+					NodeList[NodeList[HighestList[i]].children[j].id].x += move ;
+				moved = false ;
+			}
+			for ( var j = i + 1 ; j < HighestList.length ; j ++ ){
+				if ( Math.abs(NodeList[HighestList[i]].x -  NodeList[HighestList[j]].x) <= child_horizontal_distance ) {
+					move += child_horizontal_distance ;
+					moved = true ;
+				}
+			}
+		}
+		move = offset ;
+		moved = false ;
+		for ( var i = 0 ; i < HighestList.length ; i ++ ){
+			NodeList[HighestList[i]].x += move ;
+			NodeList[NodeList[HighestList[i]].couple.id].x += move ;
+			if ( moved === true ){
+				for ( var j = 0 ; j < NodeList[HighestList[i]].children.length ; j ++ )
+					NodeList[NodeList[HighestList[i]].children[j].id].x += move ;
+				moved = false ;
+			}
+			for ( var j = 0 ; j < NodeList[HighestList[i]].children.length ; j ++ ){
+				for ( var k = i + 1 ; k < HighestList.length ; k ++ ) {
+					if ( NodeList[HighestList[i]].children[j].x >= NodeList[HighestList[k]].children[0].x - child_horizontal_distance / 2 ){
+						move += child_horizontal_distance ;
+						moved = true ;
+					}
+				}
+			}
+		}
+		FixChildren(0) ;
+		SecondList = new Array();
+		LowestList = new Array();
+		if ( HighestList.length > 0 ){ 
+			for ( var j = 0 ; j < NodeList[HighestList[0]].children.length ; j ++ ){
+				SecondList.push(NodeList[HighestList[0]].children[j].id) ;
+			}
+			for ( var j = 0 ; j < NodeList[HighestList[1]].children.length ; j ++ ){
+				SecondList.push(NodeList[HighestList[1]].children[j].id) ;
+			}
+			for ( var j = 0 ; j < NodeList[0].children.length ; j ++ ){
+				LowestList.push(NodeList[0].children[j].id) ;
+			}
+		}
+		for ( var i = 0 ; i < HighestList.length ; i ++ ){
+			if ( HighestLeft === null ){
+				HighestLeft = HighestList[i].x ;
+				HighestRight = HighestList[i].x ;
+			} else if ( HighestLeft !== null ){
+				HighestRight = HighestList[i].x ;
+			}
+		}
+		for ( var i = 0 ; i < SecondList.length ; i ++ ){
+			if ( SecondLeft === null ){
+				SecondLeft = SecondList[i].x ;
+				SecondRight = SecondList[i].x ;
+			} else if ( SecondLeft !== null ){
+				SecondRight = SecondList[i].x ;
+			}
+		}
+		for ( var i = 0 ; i < LowestList.length ; i ++ ){
+			if ( LowestLeft === null ){
+				LowestLeft = LowestList[i].x ;
+				LowestRight = LowestList[i].x ;
+			} else if ( HighestLeft !== null ){
+				LowestRight = LowestList[i].x ;
+			}
+		}
+	}
+	
+	var DetectAllCover = function(){
+		DetectLevel(0);
+		/*
+		var ysite = 99999 , highestid ;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ) {
+			if ( ysite > NodeList[i].y ){
+				ysite = NodeList[i].y ;
+				highestid = i ;
+			}
+		}
+		HighestList = [];
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			if ( NodeList[i].y === ysite && NodeList[i].sex === 1 ){
+				HighestList.push(i) ;
+			}
+		}
+		var LevelOrderNode = [[]] ;
+		var SortedList = NodeList ;
+		SortedList.sort(function(a, b){return a.y-b.y});
+		var ysite = SortedList[0] ;
+		for ( var i = 0 , j = 0 ; i < SortedList.length ; i ++ ){
+			if ( SortedList[i] === ysite ){
+				LevelOrderNode[j].push()
+			}
+		}
+		/*
+		var Fixed = false ;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			while ( DetectCover(i) === true ){
+				DetectCover(i) ;
+				Fixed = true ;
+			}
+		}*/
+		//FixCouple();
+		//FixSoloChild();
+	}
+	
+	var Paint2 = function(){
+		ctx.clearRect ( (-1)*c.width , (-1)*c.height , c.width*2, c.height*2 );
+		ctx.font = "30px Arial";
+		ctx.fillStyle = "#000000";
+		ctx.fillText("By : jeno5980515", 600, 600);
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			if ( NodeList[i].x === null || NodeList[i].y === null ) {
+				alert("Bug") ;
+				break ;
+			}
+			ctx.strokeStyle = "black" ;
+			if ( NodeList[i].id === NowId ){
+				ctx.strokeStyle = "red" ;
+			}
+			if ( NodeList[i].dead == false ){
+				if ( NodeList[i].sex === 0 ){
+					ctx.beginPath();
+					ctx.arc(NodeList[i].x+move_x+moved_x,NodeList[i].y+move_y+moved_y,size,0,Math.PI*2);
+					ctx.stroke() ;
+					if ( NodeList[i].me === true ){
+						ctx.beginPath();
+						ctx.moveTo( NodeList[i].x+size-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size-5-1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size-5+1+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2-5+1+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1-5-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size+5-1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+5+1+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2+5+1+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1+5-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size-10-1-3-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size-10+1+3+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2-10+1+1+3-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1-10-1-3 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size+10-1-3-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+10+1+3+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2+10+1+1+3-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1+10-1-3 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.stroke() ;
+					}
+				} else {
+					ctx.beginPath();
+					ctx.strokeRect(NodeList[i].x-offsetx+move_x+moved_x,NodeList[i].y-offsety+move_y+moved_y,size+offsetsize,size+offsetsize);
+					if ( NodeList[i].me === true ){
+						ctx.beginPath();
+						ctx.moveTo( NodeList[i].x+size+2-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size-2+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2+1-2-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1+2 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size-5-1-1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size-5+1+1+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2-5+1+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1-5-1-1+ +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size+5-1-1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+5+1+1+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2+5+1+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1+5-1-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size-10-1-3-2-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size-10+1+3+2+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2-10+1+1+3+1+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1-10-1-3-1-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.moveTo( NodeList[i].x+size+10-1-3-2-1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+10+1+3+2+1+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+						ctx.lineTo( NodeList[i].x-size/2+10+1+1+3+1+2-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1+10-1-3-1-2 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+						ctx.stroke() ;
+					}
+				}
+			} else {
+				if ( NodeList[i].sex === 0 ){
+					ctx.beginPath();
+					ctx.arc(NodeList[i].x+move_x+moved_x,NodeList[i].y+move_y+moved_y,size,0,Math.PI*2);
+					ctx.stroke() ;
+					ctx.closePath();
+					ctx.moveTo(0,0);
+					ctx.beginPath();
+					ctx.moveTo( NodeList[i].x-size+(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+					ctx.lineTo( NodeList[i].x+size/2-1+(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+					ctx.stroke() ;
+					ctx.moveTo( NodeList[i].x+size-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-size+(size-Math.sqrt(size*size/2)) +move_y+moved_y) ;
+					ctx.lineTo( NodeList[i].x-size/2+1-(size-Math.sqrt(size*size/2))+move_x+moved_x,  NodeList[i].y-1 +size/2+(size-Math.sqrt(size*size/2))+move_y+moved_y) ;
+					ctx.stroke() ;
+				} else {
+					ctx.beginPath();
+					ctx.strokeRect(NodeList[i].x-offsetx+move_x+moved_x,NodeList[i].y-offsety+move_y+moved_y,size+offsetsize,size+offsetsize);
+					ctx.stroke() ;
+					ctx.closePath();
+					ctx.moveTo(0,0);
+					ctx.beginPath();
+					ctx.moveTo( NodeList[i].x-size+2+move_x+moved_x,  NodeList[i].y+2-size+move_y+moved_y) ;
+					ctx.lineTo( NodeList[i].x+size-3+move_x+moved_x,  NodeList[i].y-3+size+move_y+moved_y) ;
+					ctx.stroke() ;
+					ctx.moveTo( NodeList[i].x+size-3+move_x+moved_x,  NodeList[i].y+2-size+move_y+moved_y) ;
+					ctx.lineTo( NodeList[i].x-size+3+move_x+moved_x,  NodeList[i].y-3+size+move_y+moved_y) ;
+					ctx.stroke() ;
+				}
+			}
+			if ( NodeList[i].age !== null ){
+				ctx.font = "20px Arial";
+				ctx.fillText(NodeList[i].age, NodeList[i].x-size+move_x+moved_x+10, NodeList[i].y+size+move_y+moved_y+40);
+			}
+		}
+		ctx.strokeStyle = "black" ;
+		ctx.closePath();
+		ctx.moveTo(0,0);
+		ctx.beginPath();
+		DrawLine();
+	}
+	
+	var DetectCover = function(index){
+		var result = false ;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			if ( i === index )
+				continue ;
+			if ( Math.abs(NodeList[i].x - NodeList[index].x) <= child_horizontal_distance / 2 && index !== i && NodeList[i].y === NodeList[index].y ){
+				FixSite(index,i) ;
+				result = true ;
+				i = -1 ;
+			}
+		}
+		if ( result === true )
+			return true ;
+		else 
+			return false ;
+	}
+	
+	var FixParent = function(index){
+		if ( NodeList[index].father === null || NodeList[NodeList[index].father.id].children.length === 0 )
+			return ;
+		var FatherId = NodeList[index].father.id , MotherId = NodeList[index].mother.id ;
+		if ( Math.abs(NodeList[FatherId].x + NodeList[MotherId].x / 2 - NodeList[FatherId].children[Math.floor(NodeList[FatherId].children.length/2)].x) <= couple_distance ) {
+			NodeList[FatherId].x = NodeList[FatherId].children[Math.floor(NodeList[FatherId].children.length/2)].x - couple_distance / 2 ;
+			NodeList[MotherId].x = NodeList[MotherId].children[Math.floor(NodeList[MotherId].children.length/2)].x + couple_distance / 2 ;
+		} 
+	}
+	
+	var FixChildren = function(index){
+		var coveroffsetx = 0 ;
+		if ( NodeList[index].sex === 0 ){
+			for ( var i = 0 ; i < NodeList[index].children.length ; i ++ ){
+				NodeList[NodeList[index].children[i].id].x = coveroffsetx + 
+				(-1)*Math.abs(NodeList[index].x - NodeList[NodeList[index].couple.id].x) / 2 
+				+ NodeList[index].x + ( Math.abs(NodeList[index].x - NodeList[NodeList[index].couple.id].x) * i / 2 ) - 
+				( NodeList[index].children.length - 1 ) * Math.abs(NodeList[index].x - NodeList[NodeList[index].couple.id].x) / 4 ;
+				/*
+				for ( var j = i + 1  ; j < NodeList[index].children.length ; j ++ ){
+					if ( Math.abs(NodeList[NodeList[index].children[i].id].x-NodeList[NodeList[index].children[j].id].x) <= child_horizontal_distance / 2 ){
+						if ( NodeList[NodeList[index].children[i].id].sex === 1 ) {
+							if ( NodeList[NodeList[index].children[i].id].couple !== null ){
+								NodeList[NodeList[index].children[i].id].x = NodeList[NodeList[index].children[i].id].x - couple_distance ; 
+								coveroffsetx += child_horizontal_distance ;
+								NodeList[NodeList[NodeList[index].children[i].id].couple.id].x = NodeList[NodeList[index].children[i].id].x + couple_distance ;
+							} else {
+								coveroffsetx += child_horizontal_distance / 2  ;
+							}
+						} else {
+							if ( NodeList[NodeList[index].children[i].id].couple !== null ){
+								NodeList[NodeList[index].children[i].id].x = NodeList[NodeList[index].children[i].id].x + couple_distance ; ;
+								NodeList[NodeList[NodeList[index].children[i].id].couple.id].x = NodeList[NodeList[index].children[i].id].x - couple_distance ;
+								coveroffsetx += child_horizontal_distance ;
+							} else {
+								coveroffsetx += child_horizontal_distance /2 ;
+							}
+						}
+					}
+				}
+				*/
+			}
+		} 
+	}
+
+	
+	var DrawCoupleLine = function(index){
+		ctx.closePath();
+		ctx.moveTo(0,0);
+		ctx.beginPath();
+		if ( NodeList[index].couple !== null ){
+			if ( NodeList[index].sex === 1 ){
+				ctx.moveTo(NodeList[index].x+move_x+moved_x,NodeList[index].y+move_y+moved_y+size-2);
+				ctx.lineTo(NodeList[index].x+move_x+moved_x,NodeList[index].y+move_y+moved_y+node_vertical_distance*2/7);
+				ctx.lineTo(NodeList[NodeList[index].couple.id].x+move_x+moved_x,NodeList[NodeList[index].couple.id].y+move_y+moved_y+node_vertical_distance*2/7);
+				ctx.lineTo(NodeList[NodeList[index].couple.id].x+move_x+moved_x,NodeList[NodeList[index].couple.id].y+move_y+moved_y+size);
+				ctx.stroke();
+			}
+		}
+	}
+	
+	var DrawChildrenLine = function(index){
+		ctx.closePath();
+		ctx.moveTo(0,0);
+		ctx.beginPath();
+		if ( NodeList[index].couple !== null && NodeList[index].children.length !== 0 && NodeList[index].sex === 1 ){
+			ctx.moveTo(NodeList[index].children[0].x+move_x+moved_x,NodeList[index].y+move_y+moved_y+node_vertical_distance*5/8);
+			ctx.lineTo(NodeList[index].children[NodeList[index].children.length-1].x+move_x+moved_x,NodeList[NodeList[index].couple.id].y+move_y+moved_y+node_vertical_distance*5/8);
+			for ( var i = 0 ; i < NodeList[index].children.length ; i ++ ){
+				ctx.moveTo(NodeList[index].children[i].x+move_x+moved_x,NodeList[index].children[i].y+move_y+moved_y-node_vertical_distance*3/8);
+				if ( NodeList[index].children[i].sex === 0 ){
+					ctx.lineTo(NodeList[index].children[i].x+move_x+moved_x,NodeList[index].children[i].y+move_y+moved_y-size+1);
+				} else {
+					ctx.lineTo(NodeList[index].children[i].x+move_x+moved_x,NodeList[index].children[i].y+move_y+moved_y-size+1);	
+				}
+			}
+			ctx.moveTo((NodeList[NodeList[index].couple.id].x + NodeList[index].x)/2+move_x+moved_x,NodeList[index].y+move_y+moved_y+node_vertical_distance*2/7);
+			ctx.lineTo((NodeList[NodeList[index].couple.id].x + NodeList[index].x)/2+move_x+moved_x,NodeList[index].y+move_y+moved_y+node_vertical_distance*5/8);
+			ctx.stroke();
+		}
+	}
+	
+	var DrawLine = function(){
+		ctx.moveTo(0,0) ;
+		for ( var i = 0 ; i < NodeList.length ; i ++ ){
+			DrawCoupleLine(i) ;
+			DrawChildrenLine(i) ;
+		}
+	}
+	
+	var DrawTogether = function(){
+	}
+	
+	var Init = function(){
+		NodeList = new Array();
+		HighestList = new Array();
+		var Me = new Node(0);
+		Me.x = c.width/2 ;
+		Me.y = c.height/ 2 ;
+		Me.me = false ;
+		NodeList.push(Me) ;
+		NowId = 0 ;
+		InsertCouple();
+		InsertChildBack();
+		InsertParent();
+		NowId = 1 ;
+		InsertParent();
+		NowId = null ;
+		HighestList[0] = 5 ;
+		HighestList[1] = 3 ;
+		HighestLeft = HighestRight = SecondLeft = SecondRight = LowestLeft = LowestRight = null ;
+		Paint();
+	}
+
+	window.onload = function(){
+		Init();
+	}
+	
+</script>
